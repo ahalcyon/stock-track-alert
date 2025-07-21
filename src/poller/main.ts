@@ -2,9 +2,22 @@ import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import "https://deno.land/x/dotenv/load.ts";
-import { DefaultApi } from 'finnhub-ts'
+import { DefaultApi } from 'finnhub-ts';
+import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+
+const secretsManager = new SecretsManagerClient({});
+
+async function getFinnhubApiKey(): Promise<string> {
+  const command = new GetSecretValueCommand({ SecretId: Deno.env.get("FINNHUB_API_KEY") });
+  const response = await secretsManager.send(command);
+  if (response.SecretString) {
+    return JSON.parse(response.SecretString).FINNHUB_API_KEY;
+  }
+  throw new Error("Unable to retrieve Finnhub API key");
+}
+
 const finnhubClient = new DefaultApi({
-  apiKey: Deno.env.get('FINNHUB_API_KEY'),
+  apiKey: await getFinnhubApiKey(),
   isJsonMime: (input) => {
     try {
       JSON.parse(input)

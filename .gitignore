@@ -53,3 +53,9 @@ out/
 # Temporary files
 tmp/
 temp/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
