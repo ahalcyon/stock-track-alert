@@ -6,8 +6,11 @@ RUN chmod +x /aws-lambda-rie
 
 WORKDIR /app
 
-# Copy the entrypoint and cache dependencies
+# Copy deno configuration and dependencies first
+COPY deno.json ./
 COPY src/notifier/main.ts ./
+
+# Cache dependencies
 RUN deno cache main.ts
 
 # Set the CMD to your handler function
