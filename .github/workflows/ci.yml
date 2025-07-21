@@ -80,7 +80,16 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=stock-track-alert-tfstate" \
+            -backend-config="key=dev/terraform.tfstate" \
+            -backend-config="region=ap-northeast-1" \
+            -backend-config="dynamodb_table=stock-track-alert-tfstate-lock"
+        working-directory: ./infra/envs/dev
+
+      - name: Terraform Plan
+        run: terraform plan
         working-directory: ./infra/envs/dev
 
       - name: Terraform Apply
