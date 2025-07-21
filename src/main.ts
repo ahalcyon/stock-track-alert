@@ -38,7 +38,6 @@ function price(ticker: string) {
 }
 
 async function check() {
-  console.log(Deno.env.get('PUSHOVER_USER_KEY'));
   for (const target of targets) {
     const p = await price(target.ticker);
     if (p < target.lower_threshold) {
