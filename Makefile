@@ -17,3 +17,12 @@ plan:
 apply:
 	terraform -chdir=infra/envs/dev apply -auto-approve
 
+global-init:
+	terraform -chdir=infra/global init
+
+global-plan:
+	terraform -chdir=infra/global plan
+
+global-apply:
+	terraform -chdir=infra/global apply -auto-approve
+
