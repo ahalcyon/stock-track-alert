@@ -8,6 +8,7 @@ variable "dead_letter_queue_name" {
 
 resource "aws_sqs_queue" "this" {
   name                       = var.queue_name
+  visibility_timeout_seconds = 70
   redrive_policy             = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.dead_letter_queue.arn,
     maxReceiveCount     = 4

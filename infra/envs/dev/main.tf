@@ -36,6 +36,13 @@ resource "aws_iam_role" "poller" {
         Principal = {
           Service = "lambda.amazonaws.com"
         }
+      },
+      {
+        Action    = "sts:AssumeRole",
+        Effect    = "Allow",
+        Principal = {
+          Service = "scheduler.amazonaws.com"
+        }
       }
     ]
   })
@@ -67,6 +74,13 @@ resource "aws_iam_policy" "poller" {
         ],
         Effect   = "Allow",
         Resource = module.sqs.queue_arn
+      },
+      {
+        Action   = [
+          "lambda:InvokeFunction"
+        ],
+        Effect   = "Allow",
+        Resource = "*"
       }
     ]
   })
@@ -76,6 +90,12 @@ resource "aws_iam_policy" "poller" {
 resource "aws_iam_role_policy_attachment" "poller" {
   role       = aws_iam_role.poller.name
   policy_arn = aws_iam_policy.poller.arn
+}
+
+# Attach AWS Lambda basic execution role
+resource "aws_iam_role_policy_attachment" "poller_basic" {
+  role       = aws_iam_role.poller.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # IAM Role for Notifier
@@ -132,6 +152,12 @@ resource "aws_iam_policy" "notifier" {
 resource "aws_iam_role_policy_attachment" "notifier" {
   role       = aws_iam_role.notifier.name
   policy_arn = aws_iam_policy.notifier.arn
+}
+
+# Attach AWS Lambda basic execution role
+resource "aws_iam_role_policy_attachment" "notifier_basic" {
+  role       = aws_iam_role.notifier.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # Secrets Manager
