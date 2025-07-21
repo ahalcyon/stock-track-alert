@@ -16,11 +16,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Debug OIDC Token Sub Claim
+        uses: actions/github-script@v6
+        id: get-token-sub
+        with:
+          script: |
+            const token = await core.getIDToken();
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+            console.log(`OIDC Token Payload: ${JSON.stringify(payload, null, 2)}`);
+            console.log(`OIDC Token Sub Claim: ${payload.sub}`);
+            core.setOutput('sub_claim', payload.sub);
+
       - name: Configure AWS credentials
+        id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::769813884566:role/github-actions-role-stock-track-alert # 作成したIAMロールのARN
           aws-region: ap-northeast-1
+
+      - name: Debug OIDC Token
+        run: |
+          echo "OIDC_TOKEN_REQUEST_URL: ${{ steps.aws-creds.outputs.id-token-request-url }}"
+          echo "OIDC_TOKEN_REQUEST_TOKEN: ${{ steps.aws-creds.outputs.id-token-request-token }}"
+          # OIDCトークンのペイロードをデコードして表示
+          echo "OIDC_TOKEN_PAYLOAD: $(echo ${{ steps.aws-creds.outputs.id-token-request-token }} | cut -d. -f2 | base64 -d)"
 
       - name: Login to Amazon ECR
         id: login-ecr

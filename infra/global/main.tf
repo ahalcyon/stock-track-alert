@@ -34,8 +34,8 @@ resource "aws_iam_role" "github_actions" {
         },
         Action = "sts:AssumeRoleWithWebIdentity",
         Condition = {
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:ahalcyon/stock-track-alert:*"
+          StringEquals = {
+            "token.actions.githubusercontent.com:sub" = "repo:ahalcyon/stock-track-alert:ref:refs/heads/master"
           }
         }
       }
