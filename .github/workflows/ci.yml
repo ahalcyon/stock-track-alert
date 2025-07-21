@@ -16,17 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Debug OIDC Token Sub Claim
-        uses: actions/github-script@v6
-        id: get-token-sub
-        with:
-          script: |
-            const token = await core.getIDToken();
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-            console.log(`OIDC Token Payload: ${JSON.stringify(payload, null, 2)}`);
-            console.log(`OIDC Token Sub Claim: ${payload.sub}`);
-            core.setOutput('sub_claim', payload.sub);
-
       - name: Configure AWS credentials
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
@@ -34,34 +23,61 @@ jobs:
           role-to-assume: arn:aws:iam::769813884566:role/github-actions-role-stock-track-alert # 作成したIAMロールのARN
           aws-region: ap-northeast-1
 
-      - name: Debug OIDC Token
-        run: |
-          echo "OIDC_TOKEN_REQUEST_URL: ${{ steps.aws-creds.outputs.id-token-request-url }}"
-          echo "OIDC_TOKEN_REQUEST_TOKEN: ${{ steps.aws-creds.outputs.id-token-request-token }}"
-          # OIDCトークンのペイロードをデコードして表示
-          echo "OIDC_TOKEN_PAYLOAD: $(echo ${{ steps.aws-creds.outputs.id-token-request-token }} | cut -d. -f2 | base64 -d)"
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, tag, and push poller image to Amazon ECR
+      - name: Check if poller image exists
+        id: check-poller
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: poller
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f docker/poller.Dockerfile .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          if aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --region ap-northeast-1 >/dev/null 2>&1; then
+            echo "image_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "image_exists=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Build, tag, and push notifier image to Amazon ECR
+      - name: Check if notifier image exists
+        id: check-notifier
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: notifier
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          if aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --region ap-northeast-1 >/dev/null 2>&1; then
+            echo "image_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "image_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build, tag, and push poller image to Amazon ECR
+        if: steps.check-poller.outputs.image_exists == 'false'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: poller
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f docker/poller.Dockerfile .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Also tag as latest
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Build, tag, and push notifier image to Amazon ECR
+        if: steps.check-notifier.outputs.image_exists == 'false'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: notifier
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f docker/notifier.Dockerfile .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Also tag as latest
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
     needs: build-and-push
@@ -89,10 +105,18 @@ jobs:
         working-directory: ./infra/envs/dev
 
       - name: Terraform Plan
-        run: terraform plan
+        id: plan
+        run: |
+          terraform plan -out=tfplan -detailed-exitcode
+          echo "plan_exitcode=$?" >> $GITHUB_OUTPUT
         working-directory: ./infra/envs/dev
+        continue-on-error: true
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve
+        if: steps.plan.outputs.plan_exitcode == '2'
+        run: terraform apply tfplan
         working-directory: ./infra/envs/dev
 
+      - name: No changes detected
+        if: steps.plan.outputs.plan_exitcode == '0'
+        run: echo "No infrastructure changes detected."
