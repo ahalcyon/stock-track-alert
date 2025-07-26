@@ -11,6 +11,21 @@ resource "aws_dynamodb_table" "this" {
     name = "ticker"
     type = "S"
   }
+
+  attribute {
+    name = "enabled"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "enabled-index"
+    hash_key        = "enabled"
+    projection_type = "ALL"
+  }
+
+  tags = {
+    Name = var.table_name
+  }
 }
 
 output "table_name" {
